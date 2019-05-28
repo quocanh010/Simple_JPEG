@@ -1,0 +1,78 @@
+k = load('ForemanCIF_Y.mat');
+I = k.yseq;
+
+%Encoding
+%Perform level shift down
+img = I - 128;
+
+%dct2 
+
+imModified = blockproc(img,[8 8],@(blkStruct) dct2(blkStruct.data));
+figure()
+imshow(imModified, [])
+
+%Quality factors
+qF =[75, 50, 25, 12.5];
+alpha = zeros(4,1);
+for i = 1:4
+    if (qF(i) <= 50)
+        alpha(i, 1) = 50 / qF;
+    else
+        alpha(i, 1) = 2 - 50 / qF;
+    end
+end
+%Import luminance quantization table\
+Quv = [16 11 10 16 24 40 51 61;
+        12 12 14 19 26 58 60 55;
+        14 13 16 24 40 57 69 56;
+        14 17 22 29 51 87 80 62;
+        18 22 37 56 68 109 103 77;
+        24 35 55 64 81 104 113 92;
+        49 64 78 87 103 121 120 101;
+        72 92 95 98 112 100 103 99;
+     ];
+%Uniform Quantisatigon 
+Squv = zeros(size(img));
+for i = 1: size(img, 1)/ 8 
+    for j = 1:size(img, 2) /8 
+        Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8)=  round(imModified(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8) ./ Quv);
+    end
+end
+
+
+%Path 1 Reconstruct image
+
+%Dequantization
+Ruv = zeros(size(img)); 
+for i = 1: size(img, 1)/ 8 
+    for j = 1:size(img, 2) /8 
+        Ruv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8)=  (Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8) .* Quv);
+    end
+end
+
+%Inverse Dct
+img_reconst = blockproc(Ruv,[8 8],@(blkStruct) idct2(blkStruct.data));
+%Level shift up
+img_reconst_test = img_reconst + 128;
+figure;
+imshow(uint8(img_reconst+128))
+
+
+
+MSE = sum((img_reconst_test - (I)) .^ 2, 'all') / (size(I, 1) * size(I, 2));
+%Calculating PSNR
+PSNR = 10 * log10( 255^2 / MSE);
+
+
+
+%Path 2 generate Bitstream
+
+%Zig-zag scan 
+
+for i = 1: size(img, 1)/ 8 
+    for j = 1:size(img, 2) /8 
+        z = zig_zag_v(Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8));
+        %DC = 
+        
+    end
+end
