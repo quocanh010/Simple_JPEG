@@ -78,7 +78,7 @@ end
 
     %Zig-zag scan 
 count = 0
-PRED = 0
+PRED = 0;
 for i = 1: size(img, 1)/ 8 
     for j = 1:size(img, 2) /8 
         z = zig_zag_v(Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8));
@@ -107,8 +107,9 @@ for i = 1: size(img, 1)/ 8
             n_non_zero = AC_non_zero(1,i) - AC_non_zero(1, i-1) - 1;  % # of non-zero entries in a block
             rlc_pairs = [rlc_pairs; n_non_zero AC(AC_non_zero(1,i))]
         end
+    else
+        rlc_pairs = [rlc_pairs; 0 0]
     end
-    
     if( (size(rlc_pairs, 1) + sum(rlc_pairs(:, 1), 'all')) ~= 63)
         %EOB coding
         rlc_pairs = [rlc_pairs; 0 0]
@@ -118,11 +119,44 @@ for i = 1: size(img, 1)/ 8
     
     %DC
     if(DIFF  == 0)
-        SSSS = 0
+        SSSS = 0;
     else
         SSSS = floor(log2(abs(DIFF) + 1));
     end
     
+    %DCprefix
+    DCprx = lumaDC{SSSS+1, 1}
+   
+    %Calculate offset v
+    if (DIFF > 0)
+        v = (dec2bin(DIFF));
+    else
+        v = dec2bin(abs(DIFF));
+        for i = 1:lenght(v)
+            if v(i) == '0'
+                v(i) = '1';
+            else
+                v(i) = '0';
+            end
+        end
+    end
+    offset = [];
+    for i = 1:length(v)
+        if(v(i) == '1')
+            offset = [offset 1];
+        else
+            offset = [offset 0];
+        end
+    end
+    %Codewaord for DC
+    if (DIFF == 0)
+        cw = [DCprx offset];
+    else
+        cw = [DCprx offset];
+    end
+    
+    
     count = count + 1;
+    
     end
 end
