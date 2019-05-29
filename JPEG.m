@@ -16,9 +16,9 @@ qF =[75, 50, 25, 12.5];
 alpha = zeros(4,1);
 for i = 1:4
     if (qF(i) <= 50)
-        alpha(i, 1) = 50 / qF;
+        alpha(i, 1) = 50 / qF(i);
     else
-        alpha(i, 1) = 2 - 50 / qF;
+        alpha(i, 1) = 2 - 50 / qF(i);
     end
 end
 %Import luminance quantization table\
@@ -33,46 +33,96 @@ Quv = [16 11 10 16 24 40 51 61;
      ];
 %Uniform Quantisatigon 
 Squv = zeros(size(img));
-for i = 1: size(img, 1)/ 8 
-    for j = 1:size(img, 2) /8 
-        Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8)=  round(imModified(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8) ./ Quv);
+
+Psnr = [];
+
+for a = 1:4
+    
+    
+    Q_a = alpha(a,1) * Quv
+    for i = 1: size(img, 1)/ 8 
+        for j = 1:size(img, 2) /8 
+            Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8)=  round(imModified(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8) ./ Q_a);
+        end
     end
+
+
+    %Path 1 Reconstruct image
+
+    %Dequantization
+    Ruv = zeros(size(img)); 
+    for i = 1: size(img, 1)/ 8 
+        for j = 1:size(img, 2) /8 
+            Ruv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8)=  (Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8) .* Q_a);
+        end
+    end
+
+    %Inverse Dct
+    img_reconst = blockproc(Ruv,[8 8],@(blkStruct) idct2(blkStruct.data));
+    %Level shift up
+    img_reconst_test = img_reconst + 128;
+    figure;
+    imshow(uint8(img_reconst+128))
+
+
+
+    MSE = sum((img_reconst_test - (I)) .^ 2, 'all') / (size(I, 1) * size(I, 2));
+    %Calculating PSNR
+    PSNR = 10 * log10( 255^2 / MSE);
+    Psnr = [PSNR, Psnr];
+    
 end
 
 
-%Path 1 Reconstruct image
+    %Path 2 generate Bitstream
 
-%Dequantization
-Ruv = zeros(size(img)); 
-for i = 1: size(img, 1)/ 8 
-    for j = 1:size(img, 2) /8 
-        Ruv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8)=  (Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8) .* Quv);
-    end
-end
-
-%Inverse Dct
-img_reconst = blockproc(Ruv,[8 8],@(blkStruct) idct2(blkStruct.data));
-%Level shift up
-img_reconst_test = img_reconst + 128;
-figure;
-imshow(uint8(img_reconst+128))
-
-
-
-MSE = sum((img_reconst_test - (I)) .^ 2, 'all') / (size(I, 1) * size(I, 2));
-%Calculating PSNR
-PSNR = 10 * log10( 255^2 / MSE);
-
-
-
-%Path 2 generate Bitstream
-
-%Zig-zag scan 
-
+    %Zig-zag scan 
+count = 0
+PRED = 0
 for i = 1: size(img, 1)/ 8 
     for j = 1:size(img, 2) /8 
         z = zig_zag_v(Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8));
-        %DC = 
+        DC = z(1,1);
+        AC = z(1,2:end);
+    %Processing
+    %Differential endcoding
+    %DC
+    DIFF = DC - PRED;
+    PRED = DC;
+    
+    %AC run-level-coding
+    AC_non_zero = find(AC~=0); % none zero index in AC
+    
+    rlc_pairs = [];
+    
+    %Encoding the first AC component
+    if  (AC_non_zero(1,1) ~= [])
         
+        if(AC_non_zero(1,1) == 1)
+            rlc_pairs = [rlc_pairs; 0 AC(AC_non_zero(1,1))]
+        else
+            rlc_pairs = [rlc_pairs; AC_non_zero(1,1) AC(AC_non_zero(1,1))]
+        end
+        for i = 2:length(AC_non_zero) 
+            n_non_zero = AC_non_zero(1,i) - AC_non_zero(1, i-1) - 1;  % # of non-zero entries in a block
+            rlc_pairs = [rlc_pairs; n_non_zero AC(AC_non_zero(1,i))]
+        end
+    end
+    
+    if( (size(rlc_pairs, 1) + sum(rlc_pairs(:, 1), 'all')) ~= 63)
+        %EOB coding
+        rlc_pairs = [rlc_pairs; 0 0]
+    end  
+    
+    %VLC Huffman code
+    
+    %DC
+    if(DIFF  == 0)
+        SSSS = 0
+    else
+        SSSS = floor(log2(abs(DIFF) + 1));
+    end
+    
+    count = count + 1;
     end
 end
