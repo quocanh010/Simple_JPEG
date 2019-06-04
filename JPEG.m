@@ -36,11 +36,10 @@ Quv = [16 11 10 16 24 40 51 61;
 Squv = zeros(size(img));
 
 Psnr = [];
-
 for a = 1:4
-    
- tic;   
-    Q_a = alpha(a,1) .* Quv
+ 
+
+    Q_a = alpha(a,1) .* Quv;
     for i = 1: size(img, 1)/ 8 
         for j = 1:size(img, 2) /8 
             Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8)=  round(imModified(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8) ./ Q_a);
@@ -82,6 +81,7 @@ for a = 1:4
 count = 0;
 PRED = 0;
 sum_bits = 0;
+tic;
 for i = 1: size(img, 1)/ 8 
     for j = 1:size(img, 2) /8 
         z = zig_zag_v(Squv(8*(i-1)+1: 8*(i-1)+8, 8*(j-1)+1 :8*(j-1)+8));
@@ -94,7 +94,7 @@ for i = 1: size(img, 1)/ 8
     PRED = DC;
     
     %AC run-level-coding
-    AC_non_zero = [65];
+    AC_non_zero = [];
     AC_non_zero = find(AC~=0); % none zero index in AC
     
     rlc_pairs = [];
@@ -121,12 +121,12 @@ for i = 1: size(img, 1)/ 8
    
     
     %VLC Huffman code
-    
+    cw_DC = [];
     %DC
     if(DIFF  == 0)
         SSSS = 0;
     else
-        SSSS = floor(log2(abs(DIFF) + 1));
+        SSSS = floor(log2(abs(DIFF))) + 1;
     end
     
     %DCprefix
@@ -155,9 +155,9 @@ for i = 1: size(img, 1)/ 8
     end
     %Codeword for DC
     if (DIFF == 0)
-        cw_DC = [DCprx offset];
+        cw_DC = [DCprx cw_DC];
     else
-        cw_DC = [DCprx offset];
+        cw_DC =[cw_DC [DCprx offset]];
     end
     
     
@@ -222,28 +222,34 @@ for i = 1: size(img, 1)/ 8
             end
         end
     end
+    cw_AC =[];
    %Codeword for DC
     if (DIFF_AC == 0)
-        cw_AC = [cw offset];
+        cw_AC = [cw_AC cw];
     else
-        cw_AC = [cw offset];
+        cw_AC = [cw_AC [cw offset_AC]];
     end
     
     
     end
     count = count + 1;
-    
+    sum_bits =  sum_bits + numel(cw_DC) + numel(cw_AC);
     end
     
-    sum_bits =  sum_bits + numel(cw) + numel(cw_AC);
+    
 end
 
-
-time_I = [ toc, time_I];
-num_bits = [ sum_bits, num_bits];
+disp(toc);
+num_bits = [sum_bits, num_bits];
 end
 
 
 %Post Processing
-time_I = 1./ time_I;
-kbps = time_I .* num_bits;
+
+kbps = (num_bits) ./ 1000 ;
+
+plot(kbps, Psnr);
+xlabel('kbps');
+ylabel('PSNR(alpha = 12.5, 25, 50 , 75 respectively');
+legend('Rate Distorsion Curve');
+legend('Location','southeast');
